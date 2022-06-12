@@ -11,8 +11,10 @@ struct AutoTagArgs {
     #[clap(long)]
     dry_run: bool,
     /// The commit SHA to create the tag for.
+    /// 
+    /// Uses HEAD by default.
     #[clap(long)]
-    commit: String,
+    commit: Option<String>,
     #[clap(long)]
     git_user_email: String,
     #[clap(long)]
@@ -187,9 +189,16 @@ fn create_tag(
 
     let tag_message = format!("automatic release tag of {} ({})", name, version);
 
-    let commit_sha = &args.commit;
     let git_user = &args.git_user_name;
     let git_email = &args.git_user_email;
+
+    let commit = if let Some(sha) = &args.commit {
+        repo.find_commit(Oid::from_str(sha)?)?
+    } else {
+        repo.head()?.peel_to_commit()?
+    };
+
+    let commit_sha = commit.id();
 
     if args.dry_run {
         println!(
@@ -200,7 +209,7 @@ fn create_tag(
 
     repo.tag(
         tag_name,
-        repo.find_commit(Oid::from_str(commit_sha)?)?.as_object(),
+        commit.as_object(),
         &Signature::now(git_user, git_email)?,
         &tag_message,
         false,
